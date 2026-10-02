@@ -73,7 +73,8 @@ Given one or more raw episodes (recorded interactions, documentation sections, o
 
 Each memory must be one of these kinds:
 - profile_fact: a concrete, generalizable fact about the subject or system (e.g. "Statewave requires PostgreSQL", "Alice prefers email"). Must be a STATEMENT that holds in general, not a transient value.
-- episode_summary: a concise summary of what happened in this interaction or what this section explains.
+- episode_summary: a concise summary of a substantive event, exchange,
+  outcome, or section explanation that passes the Memory selection rules.
 - procedure: a step-by-step process, workflow, or instruction that was discussed.
 
 Return a JSON array of memory objects. Each object must have:
@@ -83,13 +84,37 @@ Return a JSON array of memory objects. Each object must have:
 - "confidence": a float 0.0–1.0 indicating extraction confidence
 - "episode_index": the 0-based index of the episode this memory came from
 
+Memory selection:
+- Extract substantive information that can support future recall: concrete
+  subject/system facts, stated preferences and motivations, meaningful events
+  and experiences, decisions and commitments, technical values and changes,
+  reusable explanations, specific recommendations/resources, and procedures.
+- Do not extract routine greetings, acknowledgements, thanks, agreement,
+  empathy, reassurance, generic encouragement, or conversational paraphrases
+  when they add no substantive information.
+- Apply this selection rule before the detail-preservation and
+  assistant-capture rules. For selected information, preserve all relevant
+  specifics; do not generalize or discard them.
+- Information need not be permanent to qualify. Preserve meaningful dated
+  events, changing states, and stated feelings tied to a concrete experience.
+- If a conversational sentence mixes substantive information with routine
+  commentary, extract the substantive information.
+
 Rules:
 - Extract ALL distinct facts; do not merge unrelated facts into one memory.
 - Be precise and factual — never invent information not in the episode.
+- Do not emit episode_summary solely to record that an interaction occurred.
+  Do not emit a separate summary that only paraphrases information already
+  represented by other memories in this extraction.
+  Keep a summary when it adds substantive event context, an outcome,
+  speaker direction, or an explanation not otherwise captured.
 - PRESERVE SPECIFIC DETAILS VERBATIM. This is the most important rule. Keep the exact concrete details the source states — colors, proper names, titles, places, exact phrases, sentiment/emotion words, quantities, dates — in the memory `content`. NEVER generalize a specific into a vague theme: "painted a sunset with a pink sky and purple autumn tones" must NOT become "painted a landscape"; "savor all the good vibes at the grand opening" must NOT become "is excited about the opening"; "read 'Charlotte's Web'" must NOT become "enjoys reading"; "drives a Prius" must NOT become "has a car". If the source says it specifically, store it specifically — the specific wording is exactly what later questions ask for. When in doubt, keep MORE of the original detail, not less.
 - DO NOT extract values from inside code blocks, JSON examples, sample API responses, or curl/bash command examples as profile_facts. Those are illustrations of *shape*, not facts about the subject. For example, in `{"subject_id": "user-42", "memories_created": 5}`, "subject_id user-42" is a placeholder — it is NOT a profile fact about anyone. Skip example identifiers, sample values, placeholder names, and inline literals from documentation snippets.
 - DO extract the surrounding *prose* explanation (e.g. "POST /v1/memories/compile returns memories_created and a memories array"). That is a generalizable fact.
-- If an episode is mostly code or example data with no generalizable claims, return episode_summary describing what the section is about, not profile_facts cataloguing the example values.
+- If an episode is mostly code or example data with no generalizable claims,
+  use episode_summary to describe its substantive purpose or explanation
+  when that passes the Memory selection rules; otherwise skip it.
+  Do not catalogue example values as profile_facts.
 - If an episode contains no extractable memories, skip it.
 - Return ONLY the JSON array, no markdown fences or extra text.
 
@@ -116,12 +141,21 @@ Granularity — extract DETAILS, not just headlines:
 
 Capture BOTH speakers — including what the ASSISTANT said:
 THIS IS A COMMONLY MISSED CATEGORY. Episodes are usually a dialogue between a user and an assistant. Extract facts conveyed by EITHER speaker, not just the user.
-- When the ASSISTANT provides information, a recommendation, an answer, instructions, a diagnosis, or a resource, extract it as a memory that records WHAT the assistant said. These are frequently the exact answer to a later "what did you recommend / suggest / say about X / which … did you give me" question, and the model routinely drops them because they aren't facts "about the subject".
+- When the ASSISTANT provides substantive information, a specific
+  recommendation, an answer, instructions, a diagnosis, or a resource that
+  passes the Memory selection rules, extract a memory recording WHAT the
+  assistant said. Preserve contributions that answer a concrete later
+  question about what was recommended, explained, instructed, or provided.
+  Do not extract reassurance or a paraphrase solely because the assistant
+  said it.
 - Preserve the specifics of the assistant's contribution EXACTLY as given: named tools, product names, links/URLs, step lists, titles, quantities, dosages, settings.
 - Attribute the speaker explicitly in the memory content so retrieval can distinguish them:
     * A fact the USER asserts about themselves → profile_fact about the user ("The user's daughter is named Mia.").
     * A recommendation / answer / instruction the ASSISTANT gives → record it as the assistant's contribution ("The assistant recommended trying yoga and a standing desk for the user's lower back pain on <date>." / "The assistant suggested the book 'Atomic Habits' by James Clear.").
 - Use kind=procedure when the assistant gave a step-by-step process; otherwise episode_summary (or profile_fact when the assistant stated a durable fact the user will refer back to).
+- Record an assistant recommendation, proposal, or diagnosis as such.
+  Do not turn it into a user preference, accepted decision, implemented
+  action, or independently verified fact unless the source establishes that.
 - Each memory is ONE atomic fact or ONE coherent recommendation — do not bundle several distinct assistant suggestions into a single memory; emit one per suggestion.
 
 CRITICAL — Numerical specifications, metrics, and configuration values:
@@ -178,6 +212,22 @@ extracted memories from a conversation, but it systematically DROPS specific \
 identifying details while keeping the general topic. Your job is to catch exactly \
 those misses.
 
+Memory selection:
+- Extract substantive information that can support future recall: concrete
+  subject/system facts, stated preferences and motivations, meaningful events
+  and experiences, decisions and commitments, technical values and changes,
+  reusable explanations, specific recommendations/resources, and procedures.
+- Do not extract routine greetings, acknowledgements, thanks, agreement,
+  empathy, reassurance, generic encouragement, or conversational paraphrases
+  when they add no substantive information.
+- Apply this selection rule before the detail-preservation and
+  assistant-capture rules. For selected information, preserve all relevant
+  specifics; do not generalize or discard them.
+- Information need not be permanent to qualify. Preserve meaningful dated
+  events, changing states, and stated feelings tied to a concrete experience.
+- If a conversational sentence mixes substantive information with routine
+  commentary, extract the substantive information.
+
 You are given (1) the raw episode(s) with their recorded dates and (2) \
 ALREADY_EXTRACTED — the facts the first pass captured. Re-read the source and \
 find every specific detail that is NOT already fully captured, focusing on these \
@@ -202,8 +252,28 @@ what + when), so it stands alone and directly answers a question. Rules:
 direction (a recommendation FROM the assistant TO the user, X bought Y for Z).
 - Do NOT repeat anything already in ALREADY_EXTRACTED, and do NOT emit vague \
 themes or fragments. A memory must be a complete, answerable statement.
-- If a detail is genuinely already captured, skip it. When unsure whether a \
-SPECIFIC was captured, include it — recall is the goal of this pass.
+- Do not emit episode_summary solely to record that an interaction occurred.
+  Do not emit a separate summary that only paraphrases information already
+  represented by other memories in this extraction or ALREADY_EXTRACTED.
+  Keep a summary when it adds substantive event context, an outcome,
+  speaker direction, or an explanation not otherwise captured.
+- Skip information already represented in ALREADY_EXTRACTED, even when
+  worded differently. Emit a candidate only when you can identify a
+  source-supported substantive detail that is missing.
+- When an already captured event lacks a substantive detail, emit the
+  complete fact including that detail, preserving enough shared context
+  for it to stand alone. Do not emit a fragment or a mere paraphrase.
+- Uncertainty about whether wording differs is not a reason to add a memory.
+
+Choose kind explicitly:
+- profile_fact: a concrete, generalizable subject/system fact, including
+  dated technical values or states under the existing extraction rules.
+- procedure: a step-by-step process, workflow, or instruction.
+- episode_summary: a substantive event/exchange/section explanation.
+For eligible assistant contributions, use procedure for step-by-step
+processes; otherwise episode_summary, or profile_fact for a durable fact
+the user will refer back to. Preserve assistant attribution.
+
 - Same JSON object format as the first pass for each memory: \
 {"kind","content","summary","confidence","episode_index"}.
 - Return ONLY a JSON object {"memories": [...]}. If nothing was missed, return \
