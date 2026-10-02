@@ -11,6 +11,7 @@ These tests pin the two fixes:
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -18,6 +19,37 @@ import pytest
 from server.core.config import settings
 from server.services import llm as llm_adapter
 from server.services.compilers.llm import LLMCompiler
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("model", ["gpt-6", "openai/gpt-6-mini"])
+async def test_gpt6_completion_uses_reasoning_kwargs_without_temperature(monkeypatch, model):
+    """GPT-6 requests use reasoning settings and omit explicit temperature."""
+    captured: dict = {}
+
+    class FakeLiteLLM:
+        async def acompletion(self, **kwargs):
+            captured.update(kwargs)
+            return SimpleNamespace(
+                choices=[SimpleNamespace(message=SimpleNamespace(content="ok"))]
+            )
+
+    monkeypatch.setattr(llm_adapter, "_ensure_litellm", lambda: FakeLiteLLM())
+    monkeypatch.setattr(llm_adapter, "_common_kwargs", lambda model=None: {})
+    monkeypatch.setattr(settings, "litellm_reasoning_effort", "minimal")
+
+    result = await llm_adapter.acomplete(
+        [{"role": "user", "content": "test"}],
+        model=model,
+        temperature=0.2,
+        max_tokens=256,
+        timeout=2,
+    )
+
+    assert result == "ok"
+    assert captured["reasoning_effort"] == "minimal"
+    assert "temperature" not in captured
+    assert captured["max_tokens"] == 256
 
 
 @pytest.mark.asyncio

@@ -1,0 +1,9 @@
+# Preserve the deployed Statewave 1.5.0 image and all unrelated dependencies.
+FROM statewavedev/statewave@sha256:b927e83f6b0af0ec66034131ee83dd2130e2cd9de7aa98e55bae0d4c4206a251
+
+# Native GPT-6 reasoning-family routing and max_tokens translation.
+RUN pip install --no-cache-dir --no-deps litellm==1.98.1 && pip check
+
+# Apply the same bounded adapter change to both source and installed package.
+COPY server/services/llm.py /app/server/services/llm.py
+COPY server/services/llm.py /usr/local/lib/python3.11/site-packages/server/services/llm.py

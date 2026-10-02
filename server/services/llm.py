@@ -196,10 +196,10 @@ def _common_kwargs(model: str | None = None) -> dict[str, Any]:
     return kw
 
 
-# gpt-5 family and o-series reasoning models reject any explicit temperature
+# gpt-5/gpt-6 families and o-series reasoning models reject explicit temperature
 # other than the default (1) — passing 0.1 raises BadRequestError. Omit the
 # param for them and let the model use its default.
-_RESTRICTED_TEMP_PREFIXES = ("gpt-5", "o1", "o3", "o4")
+_RESTRICTED_TEMP_PREFIXES = ("gpt-5", "gpt-6", "o1", "o3", "o4")
 
 
 def _omit_temperature(model: str | None) -> bool:
@@ -210,7 +210,7 @@ def _omit_temperature(model: str | None) -> bool:
 
 
 def _reasoning_kwargs(model: str | None) -> dict[str, Any]:
-    """``reasoning_effort`` for gpt-5/o-series reasoning models, when configured.
+    """``reasoning_effort`` for gpt-5/gpt-6/o-series models, when configured.
 
     Only emitted for reasoning models (the same set that rejects temperature), so
     non-reasoning chat models and the embedding path are unaffected. Setting it to

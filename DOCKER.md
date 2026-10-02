@@ -58,6 +58,16 @@ walks through clone → run → store and retrieve your first memory in about 5 
 STATEWAVE_VERSION=1.3.0 docker compose up -d
 ```
 
+## Use the GPT-6-compatible local API image
+
+The standard Compose command continues to use the published Statewave image. To build and use the compatibility image locally, select its image tag and Dockerfile explicitly:
+
+```sh
+STATEWAVE_IMAGE=statewave-local:1.5.0-litellm-1.98.1 \
+STATEWAVE_DOCKERFILE=Dockerfile.compatibility \
+docker compose up -d --build
+```
+
 ## Handling port conflicts
 
 Local deployments frequently encounter port conflicts if services like PostgreSQL or other applications already use ports 5432 (database), 8100 (API) or 8080 (admin console). Override the host ports using environment variables. Only the host-side port changes — traffic between the containers (e.g. admin → API) stays on the internal compose network and is unaffected:

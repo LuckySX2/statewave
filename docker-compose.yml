@@ -16,12 +16,12 @@ services:
       retries: 10
 
   api:
-    # Default to the published multi-arch image — `docker compose up -d` works
-    # without a local checkout. Pin a version with STATEWAVE_VERSION=1.3.0.
-    # Contributors who want to rebuild locally: `docker compose build api`
-    # rebuilds from the Dockerfile in this repo and tags the same name.
-    image: statewavedev/statewave:${STATEWAVE_VERSION:-latest}
-    build: .
+    # Default to the published multi-arch image. Set STATEWAVE_IMAGE and
+    # STATEWAVE_DOCKERFILE to opt into a local compatibility build.
+    image: ${STATEWAVE_IMAGE:-statewavedev/statewave:${STATEWAVE_VERSION:-latest}}
+    build:
+      context: .
+      dockerfile: ${STATEWAVE_DOCKERFILE:-Dockerfile}
     ports:
       - "${STATEWAVE_API_HOST_PORT:-8100}:8100"
     # Load STATEWAVE_LITELLM_*, STATEWAVE_API_KEY, etc. from the host's .env.
